@@ -9,10 +9,7 @@ function Square({ value, onSquareClick }) {
   );
 }
 
-
-
-
-function Board({ xIsNext, squares, onPlay ,resetGame}) {
+function Board({ xIsNext, squares, onPlay ,resetGame, pcMove}) {
   const [pX,setPX] = useState(0);
   const [pO,setPO] = useState(0);
   const [ties,setTies] = useState(0);
@@ -56,13 +53,17 @@ function Board({ xIsNext, squares, onPlay ,resetGame}) {
   }, [winner]);
 
   if (winner) {
-    status = 'Ganador: ' + winner;
+    if(winner == 'X')
+      status = 'Ganaste !';
+    if(winner == 'O')
+      status = 'Perdiste =(';
   } else if (squares.every(square=> square !== null)){
     status = 'Empate';
   }else{
-    status = 'Siguiente Jugador: ' + (xIsNext ? 'X' : 'O');
+    //status = 'Siguiente Jugador: ' + (xIsNext ? 'X' : 'O');
+    if(!xIsNext) pcMove();
   }
-  console.log(winner)
+  
   return (
     <View style={styles.boardContainer}>
       <Text style={styles.status}>{status}</Text>
@@ -84,7 +85,7 @@ function Board({ xIsNext, squares, onPlay ,resetGame}) {
       <TouchableOpacity style={styles.resetButton} onPress={reset}>
         <Text style={styles.resetButtonText}>Reiniciar Juego</Text>
       </TouchableOpacity>
-      <Text>X: {pX} ties: {ties} O: {pO}</Text>
+      <Text>X: {pX} tie: {ties} O: {pO}</Text>
     </View>
   );
 }
@@ -110,10 +111,46 @@ export default function Game() {
     setCurrentMove(0);
   }
 
+  function pcMove(){
+    const nextSquares = currentSquares.slice(); 
+  
+  for (let i = 0; i < 9; i++) {
+    if (!nextSquares[i]) {
+      const cpySquares = nextSquares.slice();
+      cpySquares[i] = 'O';
+      if (calculateWinner(cpySquares)) {
+        handlePlay(cpySquares); 
+        return;
+      }
+    }
+  }
+
+  for (let i = 0; i < 9; i++) {
+    if (!nextSquares[i]) {
+      const cpySquares = nextSquares.slice();
+      cpySquares[i] = 'X';
+      if (calculateWinner(cpySquares)) {
+        nextSquares[i] = 'O'; 
+        handlePlay(nextSquares);
+        return;
+      }
+    }
+  }
+
+  
+    const emptySquares = nextSquares
+      .map((value, index) => (value === null ? index : null))
+      .filter(index => index !== null);
+
+    const randomIndex = emptySquares[Math.floor(Math.random() * emptySquares.length)];
+    nextSquares[randomIndex] = 'O';
+    handlePlay(nextSquares);
+  }
+  
   return (
     <View style={styles.container}>
       <View style={styles.gameBoard}>
-        <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame}/>
+        <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame} pcMove={pcMove}/>
       </View>
     </View>
   );
