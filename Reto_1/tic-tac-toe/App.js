@@ -1,5 +1,5 @@
 import React, { useState , useEffect} from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Button, Modal, BackHandler } from 'react-native';
 
 function Square({ value, onSquareClick }) {
   return (
@@ -9,14 +9,8 @@ function Square({ value, onSquareClick }) {
   );
 }
 
-function Board({ xIsNext, squares, onPlay ,resetGame, pcMove}) {
-  const [pX,setPX] = useState(0);
-  const [pO,setPO] = useState(0);
-  const [ties,setTies] = useState(0);
-
-  function reset(){
-    resetGame();
-  }
+function Board({ xIsNext, squares, onPlay ,resetGame, pcMove, df, pX, pO, ties, setPX, setPO, setTies}) {
+  
 
   function handleClick(i) {
     if (calculateWinner(squares) || squares[i]) {
@@ -33,24 +27,6 @@ function Board({ xIsNext, squares, onPlay ,resetGame, pcMove}) {
 
   const winner = calculateWinner(squares);
   let status;
-  
-  useEffect(() => {
-    if (squares.every(square => square !== null) && !winner) {
-      setTies(prevTies => prevTies + 1); // Incrementar el contador de empates solo si no hay ganador
-    }
-  },[squares]);
-
-  useEffect(() => {
-    if (winner) {
-      if (winner === 'X') {
-        setPX(prevPX => prevPX + 1);
-      } else if (winner === 'O') {
-        setPO(prevPO => prevPO + 1);
-      } else {
-        setTies(prevTies => prevTies + 1); 
-      }
-    }
-  }, [winner]);
 
   if (winner) {
     if(winner == 'X')
@@ -61,7 +37,7 @@ function Board({ xIsNext, squares, onPlay ,resetGame, pcMove}) {
     status = 'Empate';
   }else{
     //status = 'Siguiente Jugador: ' + (xIsNext ? 'X' : 'O');
-    if(!xIsNext) pcMove();
+    if(!xIsNext) pcMove(df);
   }
   
   return (
@@ -82,10 +58,8 @@ function Board({ xIsNext, squares, onPlay ,resetGame, pcMove}) {
         <Square value={squares[7]} onSquareClick={() => handleClick(7)} />
         <Square value={squares[8]} onSquareClick={() => handleClick(8)} />
       </View>
-      <TouchableOpacity style={styles.resetButton} onPress={reset}>
-        <Text style={styles.resetButtonText}>Reiniciar Juego</Text>
-      </TouchableOpacity>
-      <Text>X: {pX} tie: {ties} O: {pO}</Text>
+      <Text style={styles.text}>X: {pX} tie: {ties} O: {pO} </Text>
+      <Text style={styles.text}>Dificultad: {df}</Text>
     </View>
   );
 }
@@ -95,49 +69,129 @@ export default function Game() {
   const [currentMove, setCurrentMove] = useState(0);
   const xIsNext = currentMove % 2 === 0;
   const currentSquares = history[currentMove];
+  const [difficulty, setDifficulty] = useState('Facil');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [pX,setPX] = useState(0);
+  const [pO,setPO] = useState(0);
+  const [ties,setTies] = useState(0);
 
   function handlePlay(nextSquares) {
     const nextHistory = [...history.slice(0, currentMove + 1), nextSquares];
     setHistory(nextHistory);
     setCurrentMove(nextHistory.length - 1);
+
+    const winner = calculateWinner(nextSquares);
+    if (winner) {
+      if (winner === 'X') {
+        setPX(prevPX => prevPX + 1);
+      } else if (winner === 'O') {
+        setPO(prevPO => prevPO + 1);
+      }
+    } else if (nextSquares.every(square => square !== null)) {
+      setTies(prevTies => prevTies + 1); // Actualizar empate solo si no hay ganador
+    }
   }
 
   function jumpTo(nextMove) {
     setCurrentMove(nextMove);
   }
 
-  function resetGame() {
+  function newGame(){
     setHistory([Array(9).fill(null)]); 
     setCurrentMove(0);
   }
 
-  function pcMove(){
+  function resetGame() {
+    setHistory([Array(9).fill(null)]); 
+    setCurrentMove(0);
+    setPX(0);
+    setPO(0);
+    setTies(0);
+  }
+
+  function findBestMove(squares){
+    let bestScore = -Infinity;
+    let move = null;
+    for(let i = 0;i<9;i++){
+      if(!squares[i]){
+        squares[i] = 'O';
+        const score = minimax(squares, false);
+        squares[i]=null;
+        if(score>bestScore){
+          bestScore = score;
+          move = i;
+        }
+      }
+    }
+    return move;
+  }
+
+  function minimax(squares, isMaximizing){
+    const winner = calculateWinner(squares);
+    if (winner === 'O') return 10;
+    if (winner === 'X') return -10;
+    if (squares.every(square => square !== null)) return 0;
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!squares[i]) {
+          squares[i] = 'O';
+          const score = minimax(squares, false);
+          squares[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (!squares[i]) {
+          squares[i] = 'X';
+          const score = minimax(squares, true);
+          squares[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  }
+
+  function pcMove(df){
     const nextSquares = currentSquares.slice(); 
-  
-  for (let i = 0; i < 9; i++) {
-    if (!nextSquares[i]) {
-      const cpySquares = nextSquares.slice();
-      cpySquares[i] = 'O';
-      if (calculateWinner(cpySquares)) {
-        handlePlay(cpySquares); 
-        return;
+
+    if(df=='Experto'){
+      const bestMove = findBestMove(nextSquares);
+      nextSquares[bestMove] = 'O';
+      handlePlay(nextSquares);
+      return;
+    }
+    
+    if(df=='Difícil'){
+      for (let i = 0; i < 9; i++) {
+        if (!nextSquares[i]) {
+          const cpySquares = nextSquares.slice();
+          cpySquares[i] = 'O';
+          if (calculateWinner(cpySquares)) {
+            handlePlay(cpySquares); 
+            return;
+          }
+        }
+      }
+
+      for (let i = 0; i < 9; i++) {
+        if (!nextSquares[i]) {
+          const cpySquares = nextSquares.slice();
+          cpySquares[i] = 'X';
+          if (calculateWinner(cpySquares)) {
+            nextSquares[i] = 'O'; 
+            handlePlay(nextSquares);
+            return;
+          }
+        }
       }
     }
-  }
 
-  for (let i = 0; i < 9; i++) {
-    if (!nextSquares[i]) {
-      const cpySquares = nextSquares.slice();
-      cpySquares[i] = 'X';
-      if (calculateWinner(cpySquares)) {
-        nextSquares[i] = 'O'; 
-        handlePlay(nextSquares);
-        return;
-      }
-    }
-  }
-
-  
     const emptySquares = nextSquares
       .map((value, index) => (value === null ? index : null))
       .filter(index => index !== null);
@@ -146,12 +200,54 @@ export default function Game() {
     nextSquares[randomIndex] = 'O';
     handlePlay(nextSquares);
   }
+
+  function exitApp() {
+    Alert.alert('Salir', '¿Estás seguro que deseas salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', onPress: () => BackHandler.exitApp() },
+    ]);
+  }
   
   return (
     <View style={styles.container}>
       <View style={styles.gameBoard}>
-        <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame} pcMove={pcMove}/>
+        <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame} 
+          pcMove={pcMove} df={difficulty} pX = {pX} pO={pO} ties={ties} setPX = {setPX} setPO={setPO} setTies = {setTies}
+        />
       </View>
+      <View style={styles.bottomBar}>
+        <TouchableOpacity style={styles.bottomButton} onPress={newGame}>
+          <Text style={styles.buttonText}>Juego Nuevo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomButton} onPress={() => setModalVisible(true)}>
+          <Text style={styles.buttonText}>Cambiar Dificultad</Text>
+        </TouchableOpacity>
+        <Modal
+          visible={modalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Selecciona Dificultad</Text>
+              <TouchableOpacity onPress={() => { setDifficulty('Fácil'); setModalVisible(false); resetGame();}}>
+                <Text style={styles.option}>Fácil</Text>
+              </TouchableOpacity>            
+              <TouchableOpacity onPress={() => { setDifficulty('Difícil'); setModalVisible(false); resetGame();}}>
+                <Text style={styles.option}>Difícil</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setDifficulty('Experto'); setModalVisible(false); resetGame();}}>
+                <Text style={styles.option}>Experto</Text>
+              </TouchableOpacity>
+              <Button title="Cancelar" onPress={() => setModalVisible(false)} />
+            </View>
+          </View>
+        </Modal>
+        <TouchableOpacity style={styles.bottomButton} onPress={exitApp}>
+          <Text style={styles.buttonText}>Salir</Text>
+        </TouchableOpacity>        
+      </View>      
     </View>
   );
 }
@@ -219,4 +315,51 @@ const styles = StyleSheet.create({
     color: '#007BFF',
     marginVertical: 5,
   },
+
+  bottomBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    backgroundColor: '#f0f0f0',
+    padding: 10,
+  },
+  bottomButton: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 10,
+    marginHorizontal: 5,
+    backgroundColor: '#007BFF',
+    borderRadius: 5,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: 300,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    marginBottom: 20,
+    fontWeight: 'bold',
+  },
+  option: {
+    fontSize: 18,
+    marginVertical: 10,
+  },
+  text: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+
 });
