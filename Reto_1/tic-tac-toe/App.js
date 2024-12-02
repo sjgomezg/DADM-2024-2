@@ -1,5 +1,5 @@
 import React, { useState , useEffect} from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Button, Modal, BackHandler } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Button, Modal, BackHandler , Image} from 'react-native';
 
 function Square({ value, onSquareClick }) {
   return (
@@ -217,9 +217,17 @@ export default function Game() {
       </View>
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.bottomButton} onPress={newGame}>
+        <Image 
+            style={styles.tinyLogo}
+            source={require('./assets/newGame.png')}
+          />
           <Text style={styles.buttonText}>Juego Nuevo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.bottomButton} onPress={() => setModalVisible(true)}>
+          <Image 
+            style={styles.tinyLogo}
+            source={require('./assets/df.png')}
+          />      
           <Text style={styles.buttonText}>Cambiar Dificultad</Text>
         </TouchableOpacity>
         <Modal
@@ -245,6 +253,10 @@ export default function Game() {
           </View>
         </Modal>
         <TouchableOpacity style={styles.bottomButton} onPress={exitApp}>
+        <Image 
+            style={styles.tinyLogo}
+            source={require('./assets/exit.png')}
+          />
           <Text style={styles.buttonText}>Salir</Text>
         </TouchableOpacity>        
       </View>      
@@ -360,6 +372,11 @@ const styles = StyleSheet.create({
   text: {
     color: '#000',
     fontWeight: 'bold',
+  },
+  tinyLogo: {
+    width: 40, // Ajusta el ancho según el diseño
+    height: 40, // Ajusta la altura según el diseño
+    resizeMode: 'contain', // Mantiene la proporción de la imagen
   },
 
 });
