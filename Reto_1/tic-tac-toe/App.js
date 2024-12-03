@@ -1,26 +1,37 @@
 import React, { useState , useEffect} from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Button, Modal, BackHandler , Image} from 'react-native';
+import {Audio} from 'expo-av';
+import XImage from './assets/XImage.png';
+import OImage from './assets/OImage.png'
+
 
 function Square({ value, onSquareClick }) {
   return (
     <TouchableOpacity style={styles.square} onPress={onSquareClick}>
-      <Text style={styles.squareText}>{value}</Text>
+      {value === 'X' && <Image source={XImage} style={styles.squareImage} />}
+      {value === 'O' && <Image source={OImage} style={styles.squareImage} />}
+      {value === null && <Text style={{ color: 'transparent' }}> </Text>}
     </TouchableOpacity>
   );
 }
 
-function Board({ xIsNext, squares, onPlay ,resetGame, pcMove, df, pX, pO, ties, setPX, setPO, setTies}) {
+function Board({ xIsNext, squares, onPlay , pcMove, df, pX, pO, ties, isBoardLocked}) {
   
+  useEffect(() => {
+    if (!xIsNext && !calculateWinner(squares) && !isBoardLocked) {
+      pcMove(df);
+    }
+  }, [xIsNext, squares, pcMove, df, isBoardLocked]);
 
   function handleClick(i) {
-    if (calculateWinner(squares) || squares[i]) {
+    if (isBoardLocked || calculateWinner(squares) || squares[i]) {
       return;
     }
     const nextSquares = squares.slice();
     if (xIsNext) {
-      nextSquares[i] = 'X';
+      nextSquares[i] = 'X';      
     } else {
-      nextSquares[i] = 'O';
+      nextSquares[i] = 'O';      
     }
     onPlay(nextSquares);
   }
@@ -28,16 +39,14 @@ function Board({ xIsNext, squares, onPlay ,resetGame, pcMove, df, pX, pO, ties, 
   const winner = calculateWinner(squares);
   let status;
 
+  if(xIsNext) status = 'Tu turno';
+  else status = 'Turno de la maquina';
+  
   if (winner) {
-    if(winner == 'X')
-      status = 'Ganaste !';
-    if(winner == 'O')
-      status = 'Perdiste =(';
-  } else if (squares.every(square=> square !== null)){
+    if (winner === 'X') status = '¡Ganaste!';
+    if (winner === 'O') status = 'Perdiste =(';
+  } else if (squares.every(square => square !== null)) {
     status = 'Empate';
-  }else{
-    //status = 'Siguiente Jugador: ' + (xIsNext ? 'X' : 'O');
-    if(!xIsNext) pcMove(df);
   }
   
   return (
@@ -58,7 +67,7 @@ function Board({ xIsNext, squares, onPlay ,resetGame, pcMove, df, pX, pO, ties, 
         <Square value={squares[7]} onSquareClick={() => handleClick(7)} />
         <Square value={squares[8]} onSquareClick={() => handleClick(8)} />
       </View>
-      <Text style={styles.text}>X: {pX} tie: {ties} O: {pO} </Text>
+      <Text style={styles.text}>X: {pX} ties: {ties} O: {pO} </Text>
       <Text style={styles.text}>Dificultad: {df}</Text>
     </View>
   );
@@ -74,21 +83,60 @@ export default function Game() {
   const [pX,setPX] = useState(0);
   const [pO,setPO] = useState(0);
   const [ties,setTies] = useState(0);
+  const [isBoardLocked, setBoardLocket] = useState(false);
+  const[sound, setSound]= useState(null);
+  const rutas = {
+    w: require("./assets/win.mp3"),
+    l: require("./assets/lose.mp3"),
+    t: require("./assets/tie.mp3"),
+    T: require('./assets/tap.mp3')
+  }
+  useEffect(() => {
+    return () => {
+      // Limpiar el sonido cuando el componente se desmonta
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+  
+  async function playSound(r,sound) {
+    try {
+      
+      const { sound: newSound, status } = await Audio.Sound.createAsync(rutas[r]);
+      
+      // Verificar si el sonido se cargó correctamente
+      if (status.isLoaded) {
+        setSound(newSound);
+        await newSound.playAsync(); // Reproducir sonido
+        await sound.stopAsync();
+        await sound.unloadAsync();
+        setSound(null);
+      } else {
+        console.error('El sonido no se cargó correctamente');
+      }
+    } catch (error) {
+      console.error('Error al reproducir el sonido:', error);
+    }
+  }
 
-  function handlePlay(nextSquares) {
+  async function handlePlay(nextSquares) {
     const nextHistory = [...history.slice(0, currentMove + 1), nextSquares];
     setHistory(nextHistory);
     setCurrentMove(nextHistory.length - 1);
-
+    if (xIsNext) await playSound('T',sound);
     const winner = calculateWinner(nextSquares);
     if (winner) {
       if (winner === 'X') {
+        await playSound('w',sound);
         setPX(prevPX => prevPX + 1);
       } else if (winner === 'O') {
+        await playSound('l',sound);
         setPO(prevPO => prevPO + 1);
       }
     } else if (nextSquares.every(square => square !== null)) {
-      setTies(prevTies => prevTies + 1); // Actualizar empate solo si no hay ganador
+      await playSound('t',sound);
+      setTies(prevTies => prevTies + 1); 
     }
   }
 
@@ -99,6 +147,7 @@ export default function Game() {
   function newGame(){
     setHistory([Array(9).fill(null)]); 
     setCurrentMove(0);
+    setBoardLocket(false);
   }
 
   function resetGame() {
@@ -107,17 +156,20 @@ export default function Game() {
     setPX(0);
     setPO(0);
     setTies(0);
+    setBoardLocket(false);
   }
 
-  function findBestMove(squares){
+  function findBestMove(squares) {
+    const squaresCopy = [...squares]; // Crear una copia del tablero
     let bestScore = -Infinity;
     let move = null;
-    for(let i = 0;i<9;i++){
-      if(!squares[i]){
-        squares[i] = 'O';
-        const score = minimax(squares, false);
-        squares[i]=null;
-        if(score>bestScore){
+  
+    for (let i = 0; i < 9; i++) {
+      if (!squaresCopy[i]) { // Casilla vacía
+        squaresCopy[i] = 'O'; // Simular movimiento
+        const score = minimax(squaresCopy, false); // Llamar a minimax
+        squaresCopy[i] = null; // Revertir movimiento
+        if (score > bestScore) {
           bestScore = score;
           move = i;
         }
@@ -126,19 +178,21 @@ export default function Game() {
     return move;
   }
 
-  function minimax(squares, isMaximizing){
-    const winner = calculateWinner(squares);
+  function minimax(squares, isMaximizing) {
+    const squaresCopy = [...squares]; // Crear una copia para evitar mutación
+    const winner = calculateWinner(squaresCopy);
+  
     if (winner === 'O') return 10;
     if (winner === 'X') return -10;
-    if (squares.every(square => square !== null)) return 0;
-
+    if (squaresCopy.every(square => square !== null)) return 0;
+  
     if (isMaximizing) {
       let bestScore = -Infinity;
       for (let i = 0; i < 9; i++) {
-        if (!squares[i]) {
-          squares[i] = 'O';
-          const score = minimax(squares, false);
-          squares[i] = null;
+        if (!squaresCopy[i]) {
+          squaresCopy[i] = 'O'; // Simular movimiento
+          const score = minimax(squaresCopy, false); // Llamada recursiva
+          squaresCopy[i] = null; // Revertir movimiento
           bestScore = Math.max(score, bestScore);
         }
       }
@@ -146,10 +200,10 @@ export default function Game() {
     } else {
       let bestScore = Infinity;
       for (let i = 0; i < 9; i++) {
-        if (!squares[i]) {
-          squares[i] = 'X';
-          const score = minimax(squares, true);
-          squares[i] = null;
+        if (!squaresCopy[i]) {
+          squaresCopy[i] = 'X'; // Simular movimiento
+          const score = minimax(squaresCopy, true); // Llamada recursiva
+          squaresCopy[i] = null; // Revertir movimiento
           bestScore = Math.min(score, bestScore);
         }
       }
@@ -157,13 +211,18 @@ export default function Game() {
     }
   }
 
-  function pcMove(df){
-    const nextSquares = currentSquares.slice(); 
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+  async function pcMove(df){
+    const nextSquares = currentSquares.slice(); 
+    setBoardLocket(true);
+    await delay(2000);
+    await playSound('T',sound);
     if(df=='Experto'){
       const bestMove = findBestMove(nextSquares);
-      nextSquares[bestMove] = 'O';
+      nextSquares[bestMove] = 'O';      
       handlePlay(nextSquares);
+      setBoardLocket(false);
       return;
     }
     
@@ -172,8 +231,9 @@ export default function Game() {
         if (!nextSquares[i]) {
           const cpySquares = nextSquares.slice();
           cpySquares[i] = 'O';
-          if (calculateWinner(cpySquares)) {
+          if (calculateWinner(cpySquares)) {            
             handlePlay(cpySquares); 
+            setBoardLocket(false);
             return;
           }
         }
@@ -184,8 +244,9 @@ export default function Game() {
           const cpySquares = nextSquares.slice();
           cpySquares[i] = 'X';
           if (calculateWinner(cpySquares)) {
-            nextSquares[i] = 'O'; 
+            nextSquares[i] = 'O';            
             handlePlay(nextSquares);
+            setBoardLocket(false);
             return;
           }
         }
@@ -198,7 +259,9 @@ export default function Game() {
 
     const randomIndex = emptySquares[Math.floor(Math.random() * emptySquares.length)];
     nextSquares[randomIndex] = 'O';
+    
     handlePlay(nextSquares);
+    setBoardLocket(false);
   }
 
   function exitApp() {
@@ -212,7 +275,7 @@ export default function Game() {
     <View style={styles.container}>
       <View style={styles.gameBoard}>
         <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame} 
-          pcMove={pcMove} df={difficulty} pX = {pX} pO={pO} ties={ties} setPX = {setPX} setPO={setPO} setTies = {setTies}
+          pcMove={pcMove} df={difficulty} pX = {pX} pO={pO} ties={ties} setPX = {setPX} setPO={setPO} setTies = {setTies} isBoardLocked={isBoardLocked}
         />
       </View>
       <View style={styles.bottomBar}>
@@ -377,6 +440,11 @@ const styles = StyleSheet.create({
     width: 40, // Ajusta el ancho según el diseño
     height: 40, // Ajusta la altura según el diseño
     resizeMode: 'contain', // Mantiene la proporción de la imagen
+  },
+  squareImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain', // Para que la imagen no se deforme
   },
 
 });
