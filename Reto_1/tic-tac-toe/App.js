@@ -1,8 +1,9 @@
 import React, { useState , useEffect} from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, Alert, Button, Modal, BackHandler , Image} from 'react-native';
+import { Dimensions, View, Text, TouchableOpacity, Alert, Button, Modal, BackHandler , Image} from 'react-native';
 import {Audio} from 'expo-av';
+import styles from './styles.js';
 import XImage from './assets/XImage.png';
-import OImage from './assets/OImage.png'
+import OImage from './assets/OImage.png';
 
 
 function Square({ value, onSquareClick }) {
@@ -91,6 +92,22 @@ export default function Game() {
     t: require("./assets/tie.mp3"),
     T: require('./assets/tap.mp3')
   }
+  // Deteccion de la orientacion de la pantalla
+  const [orientation, setOrientation] = useState('portrait');
+
+  useEffect(() => {
+    const updateOrientation = () =>{
+      const {width, height} = Dimensions.get('window');
+      setOrientation(width > height ? 'landscape' : 'portrait');
+    };
+    const subscription = Dimensions.addEventListener('change',updateOrientation);
+
+    updateOrientation();
+    return () => subscription?.remove();
+  },[]);
+
+
+  
   useEffect(() => {
     return () => {
       // Limpiar el sonido cuando el componente se desmonta
@@ -272,25 +289,21 @@ export default function Game() {
   }
   
   return (
-    <View style={styles.container}>
+    <View style={orientation === 'portrait'? styles.containerPortrait: styles.containerLandscape}>
+      {/*tablero*/}
       <View style={styles.gameBoard}>
         <Board xIsNext={xIsNext} squares={currentSquares} onPlay={handlePlay}  resetGame={resetGame} 
           pcMove={pcMove} df={difficulty} pX = {pX} pO={pO} ties={ties} setPX = {setPX} setPO={setPO} setTies = {setTies} isBoardLocked={isBoardLocked}
         />
       </View>
-      <View style={styles.bottomBar}>
+      {/*botones*/}
+      <View style={orientation === 'portrait'? styles.controlsPortrait: styles.controlsLandscape}>
         <TouchableOpacity style={styles.bottomButton} onPress={newGame}>
-        <Image 
-            style={styles.tinyLogo}
-            source={require('./assets/newGame.png')}
-          />
+          <Image style={styles.tinyLogo} source={require('./assets/newGame.png')}/>
           <Text style={styles.buttonText}>Juego Nuevo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.bottomButton} onPress={() => setModalVisible(true)}>
-          <Image 
-            style={styles.tinyLogo}
-            source={require('./assets/df.png')}
-          />      
+          <Image style={styles.tinyLogo} source={require('./assets/df.png')}/>      
           <Text style={styles.buttonText}>Cambiar Dificultad</Text>
         </TouchableOpacity>
         <Modal
@@ -346,105 +359,3 @@ function calculateWinner(squares) {
   }
   return null;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center', // Centrado vertical
-    alignItems: 'center', // Centrado horizontal
-    padding: 20,
-  },
-  gameBoard: {
-    marginBottom: 20,
-  },
-  boardContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  boardRow: {
-    flexDirection: 'row',
-  },
-  square: {
-    width: 60,
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ddd',
-    margin: 2,
-    borderRadius: 5,
-  },
-  squareText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  status: {
-    marginBottom: 10,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  gameInfo: {
-    marginTop: 20,
-  },
-  moveText: {
-    fontSize: 16,
-    color: '#007BFF',
-    marginVertical: 5,
-  },
-
-  bottomBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-  },
-  bottomButton: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 10,
-    marginHorizontal: 5,
-    backgroundColor: '#007BFF',
-    borderRadius: 5,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    width: 300,
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    marginBottom: 20,
-    fontWeight: 'bold',
-  },
-  option: {
-    fontSize: 18,
-    marginVertical: 10,
-  },
-  text: {
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  tinyLogo: {
-    width: 40, // Ajusta el ancho según el diseño
-    height: 40, // Ajusta la altura según el diseño
-    resizeMode: 'contain', // Mantiene la proporción de la imagen
-  },
-  squareImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain', // Para que la imagen no se deforme
-  },
-
-});
