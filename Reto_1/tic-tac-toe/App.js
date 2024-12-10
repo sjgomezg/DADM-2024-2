@@ -4,8 +4,33 @@ import {Audio} from 'expo-av';
 import styles from './styles.js';
 import XImage from './assets/XImage.png';
 import OImage from './assets/OImage.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+//funcion para guardar el estado del juego
+async function saveGameState({ history, currentMove, pX, pO, ties, difficulty }) {
+  try {
+    const gameState = JSON.stringify({ history, currentMove, pX, pO, ties, difficulty });
+    await AsyncStorage.setItem('@game_state', gameState);
+  } catch (e) {
+    console.error('Error al guardar el estado del juego:', e);
+  }
+}
 
+//Funcion para cargar el estado del juego
+async function loadGameState() {
+  try {
+    const savedState = await AsyncStorage.getItem('@game_state');
+    if (savedState !== null) {
+      return JSON.parse(savedState);
+    }
+    return null;
+  } catch (e) {
+    console.error('Error al cargar el estado del juego:', e);
+    return null;
+  }
+}
+
+//Funcion para asignar la imagen en cada cuadro
 function Square({ value, onSquareClick }) {
   return (
     <TouchableOpacity style={styles.square} onPress={onSquareClick}>
@@ -16,6 +41,7 @@ function Square({ value, onSquareClick }) {
   );
 }
 
+// Generador y controlador del tablero
 function Board({ xIsNext, squares, onPlay , pcMove, df, pX, pO, ties, isBoardLocked}) {
   
   useEffect(() => {
@@ -74,6 +100,7 @@ function Board({ xIsNext, squares, onPlay , pcMove, df, pX, pO, ties, isBoardLoc
   );
 }
 
+// funcion general del juego
 export default function Game() {
   const [history, setHistory] = useState([Array(9).fill(null)]);
   const [currentMove, setCurrentMove] = useState(0);
@@ -106,7 +133,27 @@ export default function Game() {
     return () => subscription?.remove();
   },[]);
 
+  useEffect(() => {
+    // Solo cargar el estado cuando el componente se monta
+    const loadState = async () => {
+      const state = await loadGameState();
+      if (state) {
+        setHistory(state.history);
+        setCurrentMove(state.currentMove);
+        setPX(state.pX);
+        setPO(state.pO);
+        setTies(state.ties);
+        setDifficulty(state.difficulty);
+      }
+    };
+  
+    loadState();
+  }, []);
 
+  useEffect(() => {
+    // Guardar estado en cada cambio
+    saveGameState({ history, currentMove, pX, pO, ties, difficulty });
+  }, [history, currentMove, pX, pO, ties, difficulty]);
   
   useEffect(() => {
     return () => {
@@ -152,8 +199,8 @@ export default function Game() {
         setPO(prevPO => prevPO + 1);
       }
     } else if (nextSquares.every(square => square !== null)) {
-      await playSound('t',sound);
       setTies(prevTies => prevTies + 1); 
+      await playSound('t',sound);      
     }
   }
 
@@ -170,9 +217,6 @@ export default function Game() {
   function resetGame() {
     setHistory([Array(9).fill(null)]); 
     setCurrentMove(0);
-    setPX(0);
-    setPO(0);
-    setTies(0);
     setBoardLocket(false);
   }
 
@@ -233,7 +277,7 @@ export default function Game() {
   async function pcMove(df){
     const nextSquares = currentSquares.slice(); 
     setBoardLocket(true);
-    await delay(2000);
+    await delay(1500);
     await playSound('T',sound);
     if(df=='Experto'){
       const bestMove = findBestMove(nextSquares);
