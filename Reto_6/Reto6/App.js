@@ -109,7 +109,7 @@ export default function App() {
     setId(item.id);
     setNombre(item.nombre);
     setEmail(item.email);
-    setTel(item.tel);
+    setTel(item.tel.toString());
     setURL(item.URL);
     setClasificacion(item.clasificacion);
     setPys(item.pys);
